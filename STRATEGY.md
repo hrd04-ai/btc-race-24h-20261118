@@ -52,7 +52,11 @@ knife's edge.
 **Exit — a quick take-profit and a trailing stop.** Sell everything at
 +1.20% above the entry close (the window's real bounces run 1.6-1.9%
 from their lows, so 1.20% takes most of one), or at 1.50% below the
-highest close since entry if the bounce never comes.
+highest close since entry if the bounce never comes. Once the position
+is 0.60% in profit the trail tightens to 0.80%, so a working bounce
+keeps more of its gain on a sharp reversal. The lock is verified neutral
+on every window tested — it only bites on a reversal the tests never
+show, which is exactly the race-day case it insures against.
 
 **Stand down after a loss.** If a round trip ends with less cash than
 the bot held before the buy — judged exactly from the fills and the cash

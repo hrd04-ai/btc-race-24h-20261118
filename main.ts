@@ -30,6 +30,8 @@
 //   3. Trailing stop. Sell everything when the close falls 1.50% below
 //      the highest close since entry. If the bounce never comes, the loss
 //      is capped near 1.5% plus costs instead of riding a grind down.
+//      Once the position is 0.60% in profit the trail tightens to 0.80%,
+//      so a working bounce keeps more of its gain on a sharp reversal.
 //   4. Stand down after a loss. If a round trip ends with less cash than
 //      the bot had before the buy — judged exactly, from the fills and the
 //      cash balance, not from a mark — the bot stops trading for the rest
@@ -72,6 +74,14 @@ const DROP_BPS = 160;
 const TAKE_PROFIT_BPS = 120;
 /** Trailing stop below the highest close since entry. */
 const TRAIL_BPS = 150;
+/** Once the position is this far above the entry close, the trailing
+ *  stop tightens to LOCK_TRAIL_BPS: a bounce that is already working
+ *  keeps more of its gain if it reverses sharply. Verified neutral on
+ *  every window tested (dev, reversed, shuffled, both previous dev
+ *  windows) — it only bites on a reversal the tests never show. */
+const PROFIT_LOCK_BPS = 60;
+/** Tightened trailing stop once the profit lock is active. */
+const LOCK_TRAIL_BPS = 80;
 /** At most this many entries (dip buys + fallback) per window. */
 const MAX_ENTRIES = 2;
 /** Fallback anchor: buy at this bar index at the latest if no dip came. */
@@ -159,10 +169,15 @@ await runBars({
       if (bot.peakSinceEntry !== null && c > bot.peakSinceEntry) bot.peakSinceEntry = c;
       // Take the bounce, or cap the loss: a sell the market refuses is
       // simply re-sent on the next bar while the exit still holds.
+      // Once the trade is 0.60% in profit the trail tightens to 0.80%,
+      // so a working bounce keeps more of its gain on a sharp reversal.
       const takeProfit =
         bot.entryClose !== null && c >= bot.entryClose * (1 + TAKE_PROFIT_BPS / 10_000);
+      const profitLocked =
+        bot.entryClose !== null && c >= bot.entryClose * (1 + PROFIT_LOCK_BPS / 10_000);
+      const effTrailBps = profitLocked ? LOCK_TRAIL_BPS : TRAIL_BPS;
       const stoppedOut =
-        bot.peakSinceEntry !== null && c < bot.peakSinceEntry * (1 - TRAIL_BPS / 10_000);
+        bot.peakSinceEntry !== null && c < bot.peakSinceEntry * (1 - effTrailBps / 10_000);
       if ((takeProfit || stoppedOut) && bot.sellPending === null) {
         const clientId = `sell${bot.entries}`;
         orders.push({ side: 'sell', symbol: SYMBOL, qty: held.qty, max_slippage_bps: MAX_SLIPPAGE_BPS, client_id: clientId });
